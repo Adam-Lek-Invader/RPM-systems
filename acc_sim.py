@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from rot_utility import RotMat_y, RotMat_z
 
 rpm_rotFrame = 0.0 #z
 rpm_beeChamb = 1.0 #y
@@ -7,46 +8,6 @@ ang_deg_beeChamb = 0.0 #y
 ang_deg_rotFrame = 55.0 #z
 numeric_dt = 1e-8
 
-
-
-def RotMat_x(deg_ang=None, rad_ang=None):
-    if deg_ang is not None:
-        rad_ang = np.deg2rad(deg_ang)
-    elif rad_ang is None:
-        raise ValueError("Either deg_ang or rad_ang must be provided.")
-    
-    c = np.cos(rad_ang)
-    s = np.sin(rad_ang)
-    
-    return np.array([[1, 0, 0],
-                     [0, c, -s],
-                     [0, s, c]])
-
-def RotMat_y(deg_ang=None, rad_ang=None):
-    if deg_ang is not None:
-        rad_ang = np.deg2rad(deg_ang)
-    elif rad_ang is None:
-        raise ValueError("Either deg_ang or rad_ang must be provided.")
-    
-    c = np.cos(rad_ang)
-    s = np.sin(rad_ang)
-    
-    return np.array([[c, 0, s],
-                     [0, 1, 0],
-                     [-s, 0, c]])
-
-def RotMat_z(deg_ang=None, rad_ang=None):
-    if deg_ang is not None:
-        rad_ang = np.deg2rad(deg_ang)
-    elif rad_ang is None:
-        raise ValueError("Either deg_ang or rad_ang must be provided.")
-    
-    c = np.cos(rad_ang)
-    s = np.sin(rad_ang)
-    
-    return np.array([[c, -s, 0],
-                     [s, c, 0],
-                     [0, 0, 1]])
 
 def calc_v_point(r_vec_local:np.ndarray, rpm_rotFrame:float, rpm_beeChamb:float, ang_deg_beeChamb:float=0.0, ang_deg_rotFrame:float=0.0):
     """
