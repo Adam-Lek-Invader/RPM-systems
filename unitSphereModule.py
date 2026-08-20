@@ -1,7 +1,8 @@
 import numpy as np
+import logging, time, sys
 from rot_utility import RotMat_x, RotMat_y, RotMat_z
 
-
+logger = logging.getLogger(__name__)
 class unitSpherePoint:
     id = -1  # Unique identifier for the point
     coords = np.array([np.NaN, np.NaN, np.NaN])  # Coordinates of the point on the unit sphere X Y Z
@@ -53,13 +54,49 @@ class unitSphere:
     points = []  # list of unitSpherePoint instances
     neighbours_assigned = False  # whether neighbors have been assigned to the points or not
 
-    def __init__(self, num_points:int=0):
-        for _ in range(num_points):
-            point = unitSpherePoint()
-            point.create_new_point()
-            point.id = len(self.points)
-            self.points.append(point)
+    def __init__(self, n:int=0, method:str='random'):
+        '''
+        methods: 'random', 'polarCoordsSubdivision'
+        '''
+        match method:
+            case 'random':
+                logger.info("Generating %d random points on the unit sphere",n)
+                start_time = time.perf_counter()
+                for _ in range(n):
+                    point = unitSpherePoint()
+                    point.create_new_point()
+                    point.id = len(self.points)
+                    self.points.append(point)
+                time_passed = time.perf_counter() - start_time
+                logger.info("Points generated in time: %.2f s",time_passed)
+            case 'polarCoordsSubdivision':
+                logger.info("Generating sphere using Polar Coordinates Subdivision with n=%d ",n)
+                start_time = time.perf_counter()
+                self.__PolarCoordsSubdivision(n)
+                time_passed = time.perf_counter() - start_time
+                logger.info("Points num: %d generated in time: %.2f s",len(self.points),time_passed)
+            case default:
+                raise ValueError(f"Unknown method: {method} | Available methods: 'random', 'polarCoordsSubdivision'")
         self.neighbours_assigned = False
+
+    def __PolarCoordsSubdivision(self, n:int):
+        '''
+        Generate points on the unit sphere using polar coordinates subdivision.
+        Distributing Points on the Sphere, I Ali Katanforoush and Mehrdad Shahshahani
+        '''
+        Lattitudes = [np.pi*j/(n) - np.pi/2 for j in range(1,n-1)]  # latitudes
+        for lat in Lattitudes:
+            n_points = int(0.5 + np.sqrt(3) * n * np.cos(lat))  # number of points at this latitude
+            for k in range(n_points):
+                lon = 2 * np.pi * k / n_points  # longitude
+                x = np.cos(lat) * np.cos(lon)
+                y = np.cos(lat) * np.sin(lon)
+                z = np.sin(lat)
+                point = unitSpherePoint(x, y, z)
+                point.id = len(self.points)
+                self.points.append(point)
+        return self.points
+
 
     def __repr__(self):
         return f"unitSphere with {len(self.points)} points"
@@ -68,6 +105,8 @@ class unitSphere:
         '''
         Assign neighbors to each point on the unit sphere based on a maximum distance.
         '''
+        logger.info("Starting Assigning %d neighbors", neighbor_num)
+        start_time = time.perf_counter()
         for i, point in enumerate(self.points):
             for j, other_point in enumerate(self.points):
                 if i != j:
@@ -92,6 +131,8 @@ class unitSphere:
                         point.max_neighbor_dist = max(point.neighbors.values())
 
         self.neighbours_assigned = True
+        time_passed = time.perf_counter() - start_time
+        logger.info("Assigning completed in time: %.2f s",time_passed)
 
     
 
@@ -155,15 +196,22 @@ class unitSphere:
         plt.show()
 
 def demo_plot_pyplot():
-    sphere = unitSphere(num_points=100)
+    sphere = unitSphere(n=100)
     sphere.assign_neighbors(neighbor_num=5)
     sphere.plot_pyplot()
 
 def demo_plot_plotly():
-    sphere = unitSphere(num_points=300)
+    sphere = unitSphere(n=50, method='polarCoordsSubdivision')
     sphere.assign_neighbors(neighbor_num=5)
     sphere.plot_plotly()
 
 if __name__ == "__main__":
+    #Logger
+    logging.basicConfig(
+        level=logging.INFO,
+        stream=sys.stdout,
+    )
+
+
     #demo_plot_pyplot()
     demo_plot_plotly()
