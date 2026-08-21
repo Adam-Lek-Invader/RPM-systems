@@ -1,19 +1,20 @@
 import numpy as np
 import logging, time, sys
+
+from sympy import true
 from rot_utility import RotMat_x, RotMat_y, RotMat_z
 
 logger = logging.getLogger(__name__)
 class unitSpherePoint:
     id = -1  # Unique identifier for the point
     coords = np.array([np.NaN, np.NaN, np.NaN])  # Coordinates of the point on the unit sphere X Y Z
-    neighbors = dict()  # neighbor on sphere : distance to neighbor
-    max_neighbor_dist = np.Inf  # highest distance to a neighbor on the sphere
+    #neighbours = dict()  # neighbour on sphere : distance to neighbour
+    max_neighbour_dist = np.Inf  # highest distance to a neighbour on the sphere
     num_passed = 0  # number of times this point has been passed by a gravity vector
-    is_selected = False  # whether this point is selected by the gravity vector or not
 
     def __init__(self, x:float=np.NaN, y:float=np.NaN, z:float=np.NaN):
         self.coords = np.array([x, y, z])
-        self.neighbors = dict()
+        self.neighbours = dict()
 
     def __repr__(self):
         return f"unitSpherePoint({self.coords[0]}, {self.coords[1]}, {self.coords[2]})"
@@ -25,11 +26,16 @@ class unitSpherePoint:
         return np.isclose(np.linalg.norm(self.coords), 1.0)
 
     def distance_to(self, other):
-        if not isinstance(other, unitSpherePoint):
-            raise TypeError("Distance can only be calculated between two unitSpherePoint instances")
-        dx = self.coords[0] - other.coords[0]
-        dy = self.coords[1] - other.coords[1]
-        dz = self.coords[2] - other.coords[2]
+        if isinstance(other, unitSpherePoint):
+            dx = self.coords[0] - other.coords[0]
+            dy = self.coords[1] - other.coords[1]
+            dz = self.coords[2] - other.coords[2]
+        elif isinstance(other, (np.ndarray,list)):
+            dx = self.coords[0] - other[0]
+            dy = self.coords[1] - other[1]
+            dz = self.coords[2] - other[2]
+        else:
+            raise TypeError("Distance can only be calculated between two unitSpherePoint, list or np.ndarray")
         return np.sqrt(dx**2 + dy**2 + dz**2)
 
     def create_new_point(self):
@@ -51,13 +57,16 @@ class unitSpherePoint:
 
 
 class unitSphere:
-    points = []  # list of unitSpherePoint instances
-    neighbours_assigned = False  # whether neighbors have been assigned to the points or not
+    #points = []  # list of unitSpherePoint instances
+    neighbours_assigned = False  # whether neighbours have been assigned to the points or not
+    last_marked_point = None
 
     def __init__(self, n:int=0, method:str='random'):
         '''
         methods: 'random', 'polarCoordsSubdivision'
         '''
+        self.points = []
+        self.last_marked_point = None
         match method:
             case 'random':
                 logger.info("Generating %d random points on the unit sphere",n)
@@ -101,11 +110,11 @@ class unitSphere:
     def __repr__(self):
         return f"unitSphere with {len(self.points)} points"
 
-    def assign_neighbors(self, neighbor_num:int=8):
+    def assign_neighbours(self, neighbour_num:int=8):
         '''
-        Assign neighbors to each point on the unit sphere based on a maximum distance.
+        Assign neighbours to each point on the unit sphere based on a maximum distance.
         '''
-        logger.info("Starting Assigning %d neighbors", neighbor_num)
+        logger.info("Starting Assigning %d neighbours", neighbour_num)
         start_time = time.perf_counter()
         for i, point in enumerate(self.points):
             for j, other_point in enumerate(self.points):
@@ -113,28 +122,105 @@ class unitSphere:
                     distance = point.distance_to(other_point)
 
                     # if not enough enigbors, just add them
-                    nei_num = len(point.neighbors.keys())
-                    if nei_num < neighbor_num:
-                        point.neighbors[other_point] = distance
-                        if (distance > point.max_neighbor_dist) or (nei_num == 0):
-                            point.max_neighbor_dist = distance
+                    nei_num = len(point.neighbours.keys())
+                    if nei_num < neighbour_num:
+                        point.neighbours[other_point] = distance
+                        if (distance > point.max_neighbour_dist) or (nei_num == 0):
+                            point.max_neighbour_dist = distance
                         continue
 
-                    # check if its closer than the max distance to a neighbor
-                    if distance < point.max_neighbor_dist:
-                        # find the neighbor with the max distance and remove it
-                        max_neighbor = max(point.neighbors, key=point.neighbors.get)
-                        del point.neighbors[max_neighbor]
-                        # add the new neighbor
-                        point.neighbors[other_point] = distance
-                        # udate the max distance to a neighbor
-                        point.max_neighbor_dist = max(point.neighbors.values())
+                    # check if its closer than the max distance to a neighbour
+                    if distance < point.max_neighbour_dist:
+                        # find the neighbour with the max distance and remove it
+                        max_neighbour = max(point.neighbours, key=point.neighbours.get)
+                        del point.neighbours[max_neighbour]
+                        # add the new neighbour
+                        point.neighbours[other_point] = distance
+                        # udate the max distance to a neighbour
+                        point.max_neighbour_dist = max(point.neighbours.values())
 
         self.neighbours_assigned = True
         time_passed = time.perf_counter() - start_time
         logger.info("Assigning completed in time: %.2f s",time_passed)
 
-    
+    def find_closest(self, vec_xyz:np.ndarray)->dict:
+        min_dist = np.Inf
+        min_id = -1
+        unitSpherePointInstance = None
+        for point in self.points:
+            cur_dist = point.distance_to(vec_xyz)
+            if cur_dist < min_dist:
+                min_dist = cur_dist
+                min_id = point.id
+                unitSpherePointInstance = point
+        return {"min_dist":min_dist, "point_id":min_id, "point_ref":unitSpherePointInstance}
+
+    def mark_trajectory(self, data_xyz:np.ndarray)->int:
+        # check whether neighbours are assigned
+        if self.neighbours_assigned == False:
+            raise ValueError("Neighbours are not assigned")
+
+        # Find where to start
+        if self.last_marked_point is None:
+            found = self.find_closest(data_xyz[0,:])
+            self.last_marked_point = found["point_ref"]
+            self.last_marked_point.num_passed += 1
+        else:
+            # check wheter new data points really continue from previous last marked point
+            dist_cur = self.last_marked_point.distance_to(data_xyz[0,:])
+            dist_nei = self.last_marked_point.max_neighbour_dist
+            nei_closest = list( self.last_marked_point.neighbours.keys() )[0]
+            is_continuing = True
+            while True:
+                for nei in list( self.last_marked_point.neighbours.keys() ):
+                    dist = nei.distance_to(data_xyz[0,:])
+                    if dist < dist_nei:
+                        nei_closest = nei
+                        dist_nei = dist
+                if dist_nei < dist_cur:
+                    is_continuing = False
+                    # update cur point
+                    self.last_marked_point = nei_closest
+                    dist_cur = dist_nei
+                    # update cur point neighbours default vals
+                    dist_nei = self.last_marked_point.max_neighbour_dist
+                    nei_closest = list( self.last_marked_point.neighbours.keys() )[0]
+                else:
+                    if is_continuing == False:
+                        self.last_marked_point.num_passed += 1
+                    break
+
+        # pass all data points
+        nei_skips = 0
+        for i,data_point in enumerate( data_xyz[1:,:] ):
+            dist_cur = self.last_marked_point.distance_to(data_point)
+            dist_nei = self.last_marked_point.max_neighbour_dist
+            nei_closest = list( self.last_marked_point.neighbours.keys() )[0]
+            first_neighbourhood = True
+            while True:
+                for nei in list( self.last_marked_point.neighbours.keys() ):
+                    dist = nei.distance_to(data_point)
+                    if dist < dist_nei:
+                        nei_closest = nei
+                        dist_nei = dist
+                if dist_nei < dist_cur:
+                    # is first check neighbourhood to check nei skips
+                    if first_neighbourhood == False:
+                        nei_skips += 1
+                    first_neighbourhood = False
+                    # update cur point to closest (relative to data point) nei
+                    self.last_marked_point = nei_closest
+                    dist_cur = dist_nei
+                    self.last_marked_point.num_passed += 1
+                    # update cur point neighbours default vals
+                    dist_nei = self.last_marked_point.max_neighbour_dist
+                    nei_closest = list( self.last_marked_point.neighbours.keys() )[0]
+                else:
+                    break
+        return nei_skips           
+                
+                    
+
 
     def plot_plotly(self):
         '''
@@ -197,12 +283,12 @@ class unitSphere:
 
 def demo_plot_pyplot():
     sphere = unitSphere(n=100)
-    sphere.assign_neighbors(neighbor_num=5)
+    sphere.assign_neighbours(neighbour_num=5)
     sphere.plot_pyplot()
 
 def demo_plot_plotly():
     sphere = unitSphere(n=50, method='polarCoordsSubdivision')
-    sphere.assign_neighbors(neighbor_num=5)
+    sphere.assign_neighbours(neighbour_num=5)
     sphere.plot_plotly()
 
 if __name__ == "__main__":
