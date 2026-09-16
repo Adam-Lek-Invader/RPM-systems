@@ -1,7 +1,6 @@
 import numpy as np
 import logging, time, sys
 
-from sympy import true
 from rot_utility import RotMat_x, RotMat_y, RotMat_z
 
 logger = logging.getLogger(__name__)
@@ -156,6 +155,10 @@ class unitSphere:
         return {"min_dist":min_dist, "point_id":min_id, "point_ref":unitSpherePointInstance}
 
     def mark_trajectory(self, data_xyz:np.ndarray)->int:
+        '''
+        data_xyz[n,xyz] : array of data points to be marked on the unit sphere
+        '''
+
         # check whether neighbours are assigned
         if self.neighbours_assigned == False:
             raise ValueError("Neighbours are not assigned")
@@ -194,8 +197,8 @@ class unitSphere:
         nei_skips = 0
         for i,data_point in enumerate( data_xyz[1:,:] ):
             dist_cur = self.last_marked_point.distance_to(data_point)
-            dist_nei = self.last_marked_point.max_neighbour_dist
             nei_closest = list( self.last_marked_point.neighbours.keys() )[0]
+            dist_nei = nei_closest.distance_to(data_point)
             first_neighbourhood = True
             while True:
                 for nei in list( self.last_marked_point.neighbours.keys() ):
@@ -213,8 +216,8 @@ class unitSphere:
                     dist_cur = dist_nei
                     self.last_marked_point.num_passed += 1
                     # update cur point neighbours default vals
-                    dist_nei = self.last_marked_point.max_neighbour_dist
                     nei_closest = list( self.last_marked_point.neighbours.keys() )[0]
+                    dist_nei = nei_closest.distance_to(data_point)
                 else:
                     break
         return nei_skips           
