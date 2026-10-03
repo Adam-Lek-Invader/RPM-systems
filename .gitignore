@@ -20,6 +20,8 @@
 /[Uu]ser[Ss]ettings/
 *.log
 
+/Library/Artifacts/
+
 # By default unity supports Blender asset imports, *.blend1 blender files do not need to be committed to version control.
 *.blend1
 *.blend1.meta
@@ -41,6 +43,7 @@
 
 # Visual Studio cache directory
 .vs/
+.vscode/
 
 # Gradle cache directory
 .gradle/
