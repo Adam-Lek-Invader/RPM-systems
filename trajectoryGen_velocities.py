@@ -80,9 +80,10 @@ def random_position(param_vec, r, t)->tuple:
     speed_magnitude = param_vec[1]
     dt = param_vec[0] # time step for integration
     cur_t = 0.0
-    set_r = np.random.rand(3)*
+    set_r = np.random.rand(3)*2*np.pi
     while cur_t <= t:
-        if 
+        pass
+
 
 def main():
     parser = argparse.ArgumentParser(description="Trajectory Generation")

@@ -1,5 +1,6 @@
 import numpy as np
 import logging, time, sys
+from icosphere import icosphere
 
 from rot_utility import RotMat_x, RotMat_y, RotMat_z
 
@@ -62,7 +63,7 @@ class unitSphere:
 
     def __init__(self, n:int=0, method:str='random'):
         '''
-        methods: 'random', 'polarCoordsSubdivision'
+        methods: 'random', 'polarCoordsSubdivision', 'icoSphere'
         '''
         self.points = []
         self.last_marked_point = None
@@ -81,6 +82,12 @@ class unitSphere:
                 logger.info("Generating sphere using Polar Coordinates Subdivision with n=%d ",n)
                 start_time = time.perf_counter()
                 self.__PolarCoordsSubdivision(n)
+                time_passed = time.perf_counter() - start_time
+                logger.info("Points num: %d generated in time: %.2f s",len(self.points),time_passed)
+            case 'icoSphere':
+                logger.info("Generating sphere using Icosphere Subdivision with n=%d ",n)
+                start_time = time.perf_counter()
+                self.__IcoSphere(n)
                 time_passed = time.perf_counter() - start_time
                 logger.info("Points num: %d generated in time: %.2f s",len(self.points),time_passed)
             case default:
@@ -105,6 +112,17 @@ class unitSphere:
                 self.points.append(point)
         return self.points
 
+
+    def __IcoSphere(self, n:int):
+        '''
+        Generate points on the unit sphere using icosphere subdivision.
+        '''
+        vertices, _ = icosphere(n)
+        for i, vertex in enumerate(vertices):
+            point = unitSpherePoint(vertex[0], vertex[1], vertex[2])
+            point.id = i
+            self.points.append(point)
+        return self.points
 
     def __repr__(self):
         return f"unitSphere with {len(self.points)} points"
@@ -290,7 +308,7 @@ def demo_plot_pyplot():
     sphere.plot_pyplot()
 
 def demo_plot_plotly():
-    sphere = unitSphere(n=50, method='polarCoordsSubdivision')
+    sphere = unitSphere(n=3, method='icoSphere')
     sphere.assign_neighbours(neighbour_num=5)
     sphere.plot_plotly()
 

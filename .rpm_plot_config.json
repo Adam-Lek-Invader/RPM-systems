@@ -1,0 +1,18 @@
+{
+    "paths": [
+        "G:/MAGISTERKA",
+        "",
+        "",
+        ""
+    ],
+    "paths_names": [
+        "saved_from_unity",
+        "Path2",
+        "Path3",
+        "Path4"
+    ],
+    "trajectory_mark_type": "Position_Traj",
+    "SphereType": "icoSphere",
+    "n": 7,
+    "nei_cnt": 6
+}

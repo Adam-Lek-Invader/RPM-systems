@@ -1,7 +1,10 @@
+from pyparsing import col
 import pytest
 
+import os
 import numpy as np
 from unitSphereModule import unitSpherePoint, unitSphere
+import file_operations
 
 def make_simple_sphere()->unitSphere:
     sphere = unitSphere(n=6)
@@ -12,6 +15,76 @@ def make_simple_sphere()->unitSphere:
     sphere.points[4].coords = np.array([0,0,1])
     sphere.points[5].coords = np.array([0,0,-1])
     return sphere
+
+def get_new_unique_file_name(file_name=".temp_file")->str:
+    i = 0
+    true_file_name = file_name
+    while True:
+        if os.path.exists(true_file_name):
+            true_file_name = file_name + str(i)
+            i += 1
+        else:
+            return true_file_name
+
+class TempFile:    
+    def __enter__(self):
+        self.file_name = get_new_unique_file_name()
+        open(self.file_name, "w").close()
+        return self.file_name
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if os.path.exists(self.file_name):
+            os.remove(self.file_name)
+
+
+def Vector3_str_format(Vec3:np.ndarray|list):
+    """
+    Creates data in x|y|z format as in Vector3.
+    
+    """
+    return f"{Vec3[0]:.9f}|{Vec3[1]:.9f}|{Vec3[2]:.9f}"
+
+def generate_row(time, num_of_probes=3, axis=3):
+    """
+    Generates 1 row of data for the CSV format
+    """
+    # Bee chamber specific
+    outer_frame_speed = np.random.randint(1,20)
+    bee_chamber_speed = np.random.randint(1,20)
+
+    outer_frame_ang = np.random.uniform(0, 10)
+    bee_chamber_ang = np.random.uniform(0, 10)
+
+    bee_chamb_xyz = Vector3_str_format(np.random.uniform(-9.81, 9.81, size=3))
+
+    if axis == 2:
+        row = f"{time:.6f},{outer_frame_speed},{bee_chamber_speed},{outer_frame_ang},{bee_chamber_ang},{bee_chamb_xyz}"
+    elif axis == 3:
+        inner_frame_ang = np.random.uniform(-10,10)
+        inner_frame_speed = np.random.uniform(-10,10)
+        row = f"{time:.6f},{outer_frame_speed},{inner_frame_speed},{bee_chamber_speed},{outer_frame_ang},{inner_frame_ang},{bee_chamber_ang},{bee_chamb_xyz}"
+    else:
+        raise ValueError("too many axes required")
+ 
+    # Probes
+    for i in num_of_probes:
+        pos3 = Vector3_str_format(np.random.uniform(-9.81,9.81,size=3))
+        vel3 = Vector3_str_format(np.random.uniform(-9.81,9.81,size=3))
+        acc3 = Vector3_str_format(np.random.uniform(-9.81,9.81,size=3))
+        row += f",{pos3},{vel3},{acc3}"
+
+    return row
+
+def write_random_csv_data_file(file_name,point_num=10, axis=3, probe_num=3):
+    HEADER = "Time[s],OuterFrameSpeed[deg/s],BeeChamberSpeed[deg/s],OuterFrameAng[deg],BeeChamberAng[deg],BeeChamb_XYZ[m]"
+    for i in range(probe_num):
+        probe_id = Vector3_str_format(np.random.uniform(-10,10,size=3))
+        HEADER += f",{probe_id}_pos"
+    with os.open(file_name, os.O_WRONLY):
+        pass
+
+
+
 class TestUnitSpherePoint_basic:
     def test_point_initialization(self):
         point = unitSpherePoint()
@@ -156,6 +229,14 @@ class TestUnitSphere_basic:
             assert point.id == i
         assert sphere.neighbours_assigned == False
 
+        # IcoSphere Subdivision
+        sphere = unitSphere(n=3, method="icoSphere")
+        for i, point in enumerate(sphere.points):
+            assert isinstance(point, unitSpherePoint)
+            assert point.is_inUnitSphere() == True
+            assert point.id == i
+        assert sphere.neighbours_assigned == False
+
     def test_find_closest(self):
         # manual
         point1 = unitSpherePoint(1, 0, 0)
@@ -286,3 +367,104 @@ class TestUnitSphere_basic:
             else:
                 assert p.num_passed == 0
 
+class TestCSVReader:
+    def test_data_type_parse(self):
+        with TempFile() as fileName:
+            # create file with rand data
+            csv_header_list = ["one","two","three","four"]
+            with open(fileName, "w") as fd:
+                # header
+                row = f"{csv_header_list[0]}"
+                for col_name in csv_header_list[1:]:
+                    row += f",{col_name}"
+                row += '\n'
+                fd.write(row)
+                # data rows
+                for i in range(5):
+                    tmp_int1 = -5
+                    tmp_int2 = np.random.randint(2000)
+                    tmp_float32 = np.random.uniform()
+                    tmp_Vec3 = Vector3_str_format(np.random.uniform(size=3))
+                    row = f"{tmp_int1},{tmp_int2},{tmp_float32},{tmp_Vec3}\n"
+                    fd.write(row)
+            # parse using csv reader
+            CSV_Parser = file_operations.CSV_DataParser(fileName, maxBuffCnt=50)
+            for (col_names,buffers,buff_row_cnt) in CSV_Parser.gen_get_data():
+                # buffer cnt check
+                assert buff_row_cnt == 5
+                # header check
+                for i,col_name in enumerate(col_names):
+                    assert col_name == csv_header_list[i]
+                # type check
+                assert buffers[0].dtype == np.int32
+                assert buffers[1].dtype == np.int32
+                assert buffers[2].dtype == np.float32
+                assert buffers[3].dtype == np.float32
+                assert buffers[3].shape[1] == 3
+                for buff in buffers:
+                    assert buff.shape[0] == 5
+
+    def test_buffer_spliting(self):
+        # no split (MAX_BUFF_SIZE > ROW_CNT)
+        ROW_CNT = 20
+        MAX_BUFF_SIZE = 50
+        with TempFile() as fileName:
+            # prepare file
+            with open(fileName, "w") as fd:
+                # header
+                row = "awawka\n"
+                fd.write(row)
+                # data rows
+                for i in range(ROW_CNT):
+                    row = f"{i}\n"
+                    fd.write(row)
+
+            # parse using csv reader
+            CSV_Parser = file_operations.CSV_DataParser(fileName, maxBuffCnt=MAX_BUFF_SIZE)
+            for i,(col_names,buffers,buff_row_cnt) in enumerate(CSV_Parser.gen_get_data()):
+                assert i == 0
+                assert len(col_names) == 1
+                assert buffers[0].shape[0] == ROW_CNT
+                assert buff_row_cnt == ROW_CNT
+                for iter in range(ROW_CNT):
+                    assert iter == buffers[0][iter]
+
+        # one split (MAX_BUFF_SIZE < ROW_CNT)
+        ROW_CNT = 70
+        MAX_BUFF_SIZE = 50
+        with TempFile() as fileName:
+            # prepare file
+            with open(fileName, "w") as fd:
+                # header
+                row = "awawka,floatawaw\n"
+                fd.write(row)
+                # data rows
+                for i in range(ROW_CNT):
+                    row = f"{i},{i*0.5}\n"
+                    fd.write(row)
+
+            # parse using csv reader
+            CSV_Parser = file_operations.CSV_DataParser(fileName, maxBuffCnt=MAX_BUFF_SIZE)
+            for i,(col_names,buffers,buff_row_cnt) in enumerate(CSV_Parser.gen_get_data()):
+                assert i < 2
+                assert len(col_names) == 2
+                if i == 0:
+                    assert buffers[0].shape[0] == MAX_BUFF_SIZE
+                    assert buff_row_cnt == MAX_BUFF_SIZE
+                    for iter in range(MAX_BUFF_SIZE):
+                        assert iter+i*MAX_BUFF_SIZE == buffers[0][iter]
+                        assert (iter+i*MAX_BUFF_SIZE)*0.5 == buffers[1][iter]
+                elif i == 1:
+                    assert buffers[0].shape[0] == ROW_CNT-MAX_BUFF_SIZE
+                    assert buff_row_cnt == ROW_CNT-MAX_BUFF_SIZE
+                    for iter in range(ROW_CNT-MAX_BUFF_SIZE):
+                        assert iter+i*MAX_BUFF_SIZE == buffers[0][iter]
+                        assert (iter+i*MAX_BUFF_SIZE)*0.5 == buffers[1][iter]
+                
+            
+
+
+
+
+
+            
