@@ -79,7 +79,7 @@ public class LogData_2axis_BeeChamber : MonoBehaviour
                 }
 
                 //creating the header of the file   
-                string header_str = "Time[s],OuterFrameSpeed[deg/s],BeeChamberSpeed[deg/s],OuterFrameAng[deg],BeeChamberAng[deg],BeeChamb_X[m],BeeChamb_Y[m],BeeChamb_Z[m]"; //must end with a space
+                string header_str = "Time[s],OuterFrameSpeed[deg/s],BeeChamberSpeed[deg/s],OuterFrameAng[deg],BeeChamberAng[deg],BeeChamb_XYZ[m]"; //must end with a space
                 string probe_id;
                 foreach (GameObject probe in probes)
                 {
@@ -109,7 +109,7 @@ public class LogData_2axis_BeeChamber : MonoBehaviour
             line += OuterFrameAng.ToString() + "," + BeeChamberAng.ToString() + ",";
             // BeeChamber rotation vector
             Vector3 BeeChamberRot = this.GetComponent<Gravity_to_local>().local_grav_vector3;
-            line += BeeChamberRot.x.ToString() + "," + BeeChamberRot.y.ToString() + "," + BeeChamberRot.z.ToString() + ",";
+            line += BeeChamberRot.x.ToString() + "|" + BeeChamberRot.y.ToString() + "|" + BeeChamberRot.z.ToString();
             // probe rotation vectors
             foreach (GameObject probe in probes)
             {
@@ -117,10 +117,10 @@ public class LogData_2axis_BeeChamber : MonoBehaviour
                 Vector3 probe_loc = probe.GetComponent<Transform>().position;
                 Vector3 probe_rot = probe_loc - BeeChamb_Center;    //normalizing the vector to local position
                 //position
-                line +=  string.Format("{0:F9}|{1:F9}|{2:F9}", probe_rot.x, probe_rot.y, probe_rot.z) + ",";
+                line += "," + string.Format("{0:F9}|{1:F9}|{2:F9}", probe_rot.x, probe_rot.y, probe_rot.z) ;
                 //line += probe_rot.x.ToString() + "," + probe_rot.y.ToString() + "," + probe_rot.z.ToString() + ",";
-                line += string.Format("{0:F9}|{1:F9}|{2:F9}", probe.GetComponent<Rigidbody>().linearVelocity.x, probe.GetComponent<Rigidbody>().linearVelocity.y, probe.GetComponent<Rigidbody>().linearVelocity.z) + ",";
-                line += string.Format("{0:F9}|{1:F9}|{2:F9}", probe.GetComponent<calc_rot_acc_vel>().acc_v3.x, probe.GetComponent<calc_rot_acc_vel>().acc_v3.y, probe.GetComponent<calc_rot_acc_vel>().acc_v3.z) + ",";
+                line += "," + string.Format("{0:F9}|{1:F9}|{2:F9}", probe.GetComponent<Rigidbody>().linearVelocity.x, probe.GetComponent<Rigidbody>().linearVelocity.y, probe.GetComponent<Rigidbody>().linearVelocity.z);
+                line += "," + string.Format("{0:F9}|{1:F9}|{2:F9}", probe.GetComponent<calc_rot_acc_vel>().acc_v3.x, probe.GetComponent<calc_rot_acc_vel>().acc_v3.y, probe.GetComponent<calc_rot_acc_vel>().acc_v3.z);
             }
             writer.WriteLine(line);
         }
