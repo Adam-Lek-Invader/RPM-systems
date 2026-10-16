@@ -1,5 +1,3 @@
-from networkx import sigma
-
 from rot_utility import RotMat_x, RotMat_y, RotMat_z
 import numpy as np
 import unitSphereModule

@@ -60,13 +60,16 @@ class unitSphere:
     #points = []  # list of unitSpherePoint instances
     neighbours_assigned = False  # whether neighbours have been assigned to the points or not
     last_marked_point = None
+    last_marked_time = None
 
-    def __init__(self, n:int=0, method:str='random'):
+    def __init__(self, n:int=0, method:str='random', save_acc_vec_toFile:bool=False):
         '''
         methods: 'random', 'polarCoordsSubdivision', 'icoSphere'
         '''
         self.points = []
         self.last_marked_point = None
+
+        # method of sphere gen
         match method:
             case 'random':
                 logger.info("Generating %d random points on the unit sphere",n)
@@ -239,8 +242,101 @@ class unitSphere:
                 else:
                     break
         return nei_skips           
-                
-                    
+
+    def mark_trajectory_timed(self, data_xyz:np.ndarray, time_vector:np.ndarray)->int:
+        '''
+        data_xyz[n,xyz] : array of data points to be marked on the unit sphere
+        time_vector[n] : array of time values corresponding to each data point
+        1. same p - add time, 2. neigbhbour p - add time/2 to each p, 3. further p - add time/cnt_p to each p
+        '''
+
+        # check whether neighbours are assigned
+        if self.neighbours_assigned == False:
+            raise ValueError("Neighbours are not assigned")
+
+        # Find where to start
+        if self.last_marked_point is None:
+            found = self.find_closest(data_xyz[0,:])
+            self.last_marked_point = found["point_ref"]
+            self.last_marked_time = time_vector[0]
+        else:
+            # check wheter new data points really continue from previous last marked point
+            dist_cur = self.last_marked_point.distance_to(data_xyz[0,:])
+            dist_nei = self.last_marked_point.max_neighbour_dist
+            nei_closest = list( self.last_marked_point.neighbours.keys() )[0]
+            is_continuing = True
+            while True:
+                for nei in list( self.last_marked_point.neighbours.keys() ):
+                    dist = nei.distance_to(data_xyz[0,:])
+                    if dist < dist_nei:
+                        nei_closest = nei
+                        dist_nei = dist
+                if dist_nei < dist_cur:
+                    is_continuing = False
+                    # update cur point
+                    self.last_marked_point = nei_closest
+                    dist_cur = dist_nei
+                    self.last_marked_time = time_vector[0]
+                    # update cur point neighbours default vals
+                    dist_nei = self.last_marked_point.max_neighbour_dist
+                    nei_closest = list( self.last_marked_point.neighbours.keys() )[0]
+                else:
+                    break
+
+        # pass all data points
+        nei_skips = 0
+        prev_points = []    # used when a further point is found to update all previous points with time/cnt_p
+        for i,(data_point,cur_time) in enumerate( zip(data_xyz[1:,:], time_vector[1:]) ):
+            dist_cur = self.last_marked_point.distance_to(data_point)
+            nei_closest = list( self.last_marked_point.neighbours.keys() )[0]
+            dist_nei = nei_closest.distance_to(data_point)
+            first_neighbourhood = True
+            prev_points = [self.last_marked_point]
+            while True:
+                # check cur dist to point againt neighbours dist to point
+                for nei in list( self.last_marked_point.neighbours.keys() ):
+                    dist = nei.distance_to(data_point)
+                    if dist < dist_nei:
+                        nei_closest = nei
+                        dist_nei = dist
+                if dist_nei < dist_cur:
+                    # is first check neighbourhood to check nei skips
+                    if first_neighbourhood == False:
+                        nei_skips += 1
+                    first_neighbourhood = False
+                    # update cur point to closest (relative to data point) nei
+                    prev_points.append(nei_closest)
+                    self.last_marked_point = nei_closest
+                    dist_cur = dist_nei
+                    # update cur point neighbours default vals
+                    nei_closest = list( self.last_marked_point.neighbours.keys() )[0]
+                    dist_nei = nei_closest.distance_to(data_point)
+                else:
+                    cnt_p = len(prev_points)
+                    time_diff = (cur_time - self.last_marked_time)/cnt_p
+                    for point in prev_points:
+                        point.num_passed += time_diff
+                    self.last_marked_time = cur_time
+                    break
+
+        return nei_skips           
+    
+    def stats_average(self)->float:
+        avg = 0
+        for p in self.points:
+            avg += p.num_passed
+        avg /= len(self.points)
+        return avg
+
+    def stats_max_min(self)->dict:
+        max_passed = -1
+        min_passed = np.Inf
+        for p in self.points:
+            if p.num_passed > max_passed:
+                max_passed = p.num_passed
+            if p.num_passed < min_passed:
+                min_passed = p.num_passed
+        return {"max":max_passed, "min":min_passed, "max_min_diff":max_passed-min_passed}
 
 
     def plot_plotly(self):
@@ -256,7 +352,8 @@ class unitSphere:
         zs = [point.coords[2] for point in self.points]
         colors = [point.num_passed for point in self.points]
 
-        fig = go.Figure(data=[go.Scatter3d(
+        fig = go.Figure(
+            data=[go.Scatter3d(
             x=xs, y=ys, z=zs,
             mode='markers',
             marker=dict(
@@ -268,6 +365,27 @@ class unitSphere:
                 colorbar=dict(title='num_passed'),
             )
         )])
+
+        r = 0.85
+        u = np.linspace(0, 2 * np.pi, 50)
+        v = np.linspace(0, np.pi, 25)
+
+        x_sphere = r * np.outer(np.cos(u), np.sin(v))
+        y_sphere = r * np.outer(np.sin(u), np.sin(v))
+        z_sphere = r * np.outer(np.ones_like(u), np.cos(v))
+
+        fig.add_trace(
+            go.Surface(
+                x=x_sphere,
+                y=y_sphere,
+                z=z_sphere,
+                surfacecolor=np.zeros_like(x_sphere),
+                colorscale=[[0, 'white'], [1, 'white']],
+                showscale=False,
+                opacity=0.6,
+                hoverinfo='skip'
+            )
+        )
 
         fig.update_layout(
             scene=dict(

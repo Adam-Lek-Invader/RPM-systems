@@ -2,13 +2,22 @@ import argparse
 import logging
 import os, json, time
 import tkinter as tk
+from turtle import title
+import numpy as np
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 import gui
 import unitSphereModule
 import file_operations
 
-DEFAULT_CONFIG_FILE = ".rpm_plot_config.json"
+DEFAULT_CONFIG_FILE = ".config_rpm_trajGen.json"
 GRAV_VEC_NAME = "BeeChamb_XYZ[m]"
+TIME_VEC_NAME = "Time[s]"
+OUTER_FRAME_ANG_NAME = "OuterFrameAng[deg]"
+INTERMEDIATE_FRAME_ANG_NAME = "IntermediateFrameAng[deg]"
+INNER_FRAME_ANG_NAME = "InnerFrameAng[deg]"
+CONST_G = 9.81  #gravity acceleration [m/s^2]
 
 logger = logging.getLogger(__name__)
 
@@ -78,22 +87,33 @@ def main(argv=None):
     # 3. Mark Trajectory
     time_start = time.perf_counter()
     if config_dict["trajectory_mark_type"] == "Position_Traj":
-        mark_traj_fun = sphere.mark_trajectory
+        TRAJ_FLAG = 0    
     elif config_dict["trajectory_mark_type"] == "Time_position_Traj":
-        mark_traj_fun = sphere.mark_trajectory_timed
+        TRAJ_FLAG = 1
 
+    # data parser
     DataParser = file_operations.CSV_DataParser(file_path.get())
     total_rows = 0
     data_index = None
+    time_index = None
     for col_names, buffers, buf_row_count in DataParser.gen_get_data():
+        # save rows read
         total_rows += buf_row_count
+        # get data header
         if data_index is None:
             try:
                 data_index = col_names.index(GRAV_VEC_NAME)
+                time_index = col_names.index(TIME_VEC_NAME)
             except ValueError:
                 logger.error(f"Column '{GRAV_VEC_NAME}' not found in the CSV file.")
                 return 1
-        mark_traj_fun(buffers[data_index])
+
+        # mark data
+        match TRAJ_FLAG:
+            case 0:
+                sphere.mark_trajectory(buffers[data_index])
+            case 1:
+                sphere.mark_trajectory_timed(buffers[data_index], buffers[time_index])
 
         # update the progress
         tk_components["op2_markTraj_text"].config(text=f"Marking Trajectory... ({total_rows} rows processed)")
@@ -104,7 +124,103 @@ def main(argv=None):
     tk_components["op2_markTraj_text"].config(text=f"Trajectory of {total_rows} points marked with {selected_trajectory_mark_type} ({time_end - time_start:.2f} s)")
     root.update()
 
-    # 4. Determine velocities and accelerations @@@ to be implemented
+    # 4. taSMG plotting
+    time_start = time.perf_counter()
+
+    taSMG_start_time = None # used so that time starts from 0.0s
+    T = 0.0  # total time ( = current timestamp - start time)
+    taSMG_acc_xyz_timed = np.float64(0.0) # += a_vec*dt | normalizing by g done later to lower numerical errors
+    fig_taSMG = go.Figure()
+    fig_taSMG.add_trace(
+        go.Scatter(
+            x = [],
+            y = [],
+            mode = "lines",
+            name = "taSMG"
+        )
+    )
+    fig_taSMG.update_xaxes(title_text="Time [seconds]")
+    fig_taSMG.update_yaxes(title_text="taSMG [g]")
+
+    fig_xyz_acc = make_subplots(rows=3, cols=1, 
+                                x_title="Time [seconds]",
+                                row_titles=["x gravity [m/s^2]","y gravity [m/s^2]","z gravity [m/s^2]"])
+    fig_xyz_acc.add_trace(
+        go.Scatter(x=[], y=[], mode="lines"),
+        row=1, col=1
+    )
+
+    fig_xyz_acc.add_trace(
+        go.Scatter(x=[], y=[], mode="lines"),
+        row=2, col=1
+    )
+
+    fig_xyz_acc.add_trace(
+        go.Scatter(x=[], y=[], mode="lines"),
+        row=3, col=1
+    )
+
+
+    # data parser
+    DataParser = file_operations.CSV_DataParser(file_path.get())
+    total_rows = 0
+    data_index = None
+    time_index = None
+
+    for col_names, buffers, buf_row_count in DataParser.gen_get_data():
+        # save rows read
+        total_rows += buf_row_count
+        # get data header
+        if data_index is None:
+            try:
+                data_index = col_names.index(GRAV_VEC_NAME)
+                time_index = col_names.index(TIME_VEC_NAME)
+                taSMG_start_time = buffers[time_index][0]   # first timestamp from .csv
+            except Exception as e:
+                logger.error(f"Index Error: {e}")
+                return 1
+
+        time_buff = np.zeros(shape=(buf_row_count))
+        taSMG_buff = np.zeros(shape=(buf_row_count))
+        acc_buff = np.zeros(shape=(buf_row_count, 3))
+
+        # taSMG
+        for i,t in enumerate(buffers[time_index]):
+            dt = T - (t-taSMG_start_time)
+            T = t-taSMG_start_time
+            acc_vec = buffers[data_index][i,:]
+            
+            if T == 0.0:
+                taSMG_acc_xyz_timed += acc_vec  # just acc_vec 
+                taSMG_acc_mag = np.linalg.norm(taSMG_acc_xyz_timed)
+                taSMG = taSMG_acc_mag/CONST_G #int(a*dt)/1
+            else:
+                taSMG_acc_xyz_timed += acc_vec*dt   # a_xyz * dt
+                taSMG_acc_mag = np.linalg.norm(taSMG_acc_xyz_timed)
+                taSMG = taSMG_acc_mag/(T*CONST_G) #int(a*dt)/T
+
+            time_buff[i] = T
+            taSMG_buff[i] = taSMG
+            acc_buff[i,:] = acc_vec
+
+        # add traces to plots
+        fig_taSMG.data[0].x = np.append(fig_taSMG.data[0].x, time_buff)
+        fig_taSMG.data[0].y = np.append(fig_taSMG.data[0].y, taSMG_buff)
+        for i_xyz in range(3):
+            fig_xyz_acc.data[i_xyz].x = np.append(fig_xyz_acc.data[i_xyz].x, time_buff)
+            fig_xyz_acc.data[i_xyz].y = np.append(fig_xyz_acc.data[i_xyz].y, acc_buff[:,i_xyz])
+            
+        # update the progress
+        tk_components["op3_taSMG_text"].config(text=f"Making taSMG Plots... ({total_rows} rows processed)")
+        root.update()
+
+    time_end = time.perf_counter()
+    tk_components["op3_led"].config(fg="green")
+    tk_components["op3_taSMG_text"].config(text=f"taSMG plots completed. {total_rows} points marked ({time_end - time_start:.2f} s)")
+    root.update()
+
+
+    # 5. Determine velocities and accelerations @@@ to be implemented
 
     # All operations completed, show the results button
     tk_components["results_btn"].grid()  # show the button
@@ -114,6 +230,8 @@ def main(argv=None):
     tk_components = gui.screen_third(root, tk_components)
     root.update()
     sphere.plot_plotly()
+    fig_taSMG.show()
+    fig_xyz_acc.show()
 
 
     root.mainloop()

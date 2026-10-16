@@ -102,4 +102,3 @@ class CSV_DataParser:
                 self.csv_buffers[i] = temp_buff
             ref_buff = (self.csv_names, self.csv_buffers, self.csv_buff_cnt)
             yield ref_buff
-

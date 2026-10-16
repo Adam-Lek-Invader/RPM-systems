@@ -132,9 +132,16 @@ def screen_second(root, file_path:tk.StringVar, tk_components:dict)->dict:
     tk_components["op2_markTraj_text"] = op2_markTraj_text
     tk_components["op2_led"] = op2_led
 
+    op3_taSMG_text = tk.Label(root, text="Plotting taSMG...")
+    op3_led = tk.Label(root, text="●", fg="red")
+    op3_taSMG_text.grid(row=3, column=1, padx=10, pady=5, sticky="w")
+    op3_led.grid(row=3, column=0, padx=10, pady=5, sticky="w")
+    tk_components["op3_taSMG_text"] = op3_taSMG_text
+    tk_components["op3_led"] = op3_led
+
 
     btn = tk.Button(root, text="Results", command=lambda: root.quit())
-    btn.grid(row=3, column=0, columnspan=2, pady=10)    # Needs to be updated with each new component of the second screen, so that it is always at the bottom of the screen
+    btn.grid(row=4, column=0, columnspan=2, pady=10)    # Needs to be updated with each new component of the second screen, so that it is always at the bottom of the screen
     btn.grid_forget()  # hide the button until all operations are completed
     tk_components["results_btn"] = btn
 

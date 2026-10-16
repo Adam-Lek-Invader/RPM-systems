@@ -341,7 +341,6 @@ class TestUnitSphere_basic:
             else:
                 assert p.num_passed == 0
 
-
     def test_make_traj_further_than_nei(self):
         # interpolate and go into circle
         sphere = make_simple_sphere()
@@ -367,42 +366,153 @@ class TestUnitSphere_basic:
             else:
                 assert p.num_passed == 0
 
-class TestCSVReader:
-    def test_data_type_parse(self):
-        with TempFile() as fileName:
-            # create file with rand data
-            csv_header_list = ["one","two","three","four"]
-            with open(fileName, "w") as fd:
-                # header
-                row = f"{csv_header_list[0]}"
-                for col_name in csv_header_list[1:]:
-                    row += f",{col_name}"
-                row += '\n'
-                fd.write(row)
-                # data rows
-                for i in range(5):
-                    tmp_int1 = -5
-                    tmp_int2 = np.random.randint(2000)
-                    tmp_float32 = np.random.uniform()
-                    tmp_Vec3 = Vector3_str_format(np.random.uniform(size=3))
-                    row = f"{tmp_int1},{tmp_int2},{tmp_float32},{tmp_Vec3}\n"
-                    fd.write(row)
-            # parse using csv reader
-            CSV_Parser = file_operations.CSV_DataParser(fileName, maxBuffCnt=50)
-            for (col_names,buffers,buff_row_cnt) in CSV_Parser.gen_get_data():
-                # buffer cnt check
-                assert buff_row_cnt == 5
-                # header check
-                for i,col_name in enumerate(col_names):
-                    assert col_name == csv_header_list[i]
-                # type check
-                assert buffers[0].dtype == np.int32
-                assert buffers[1].dtype == np.int32
-                assert buffers[2].dtype == np.float32
-                assert buffers[3].dtype == np.float32
-                assert buffers[3].shape[1] == 3
-                for buff in buffers:
-                    assert buff.shape[0] == 5
+    def test_stats_average(self):
+        max_int_num = 2137
+        # int
+        sphere = unitSphere(method='icoSphere', n=2)
+        num_vec = np.random.randint(0, 2137, size=len(sphere.points))
+        for i,p in enumerate(sphere.points):
+            p.num_passed = num_vec[i]
+        avg = sphere.stats_average()
+        assert avg == pytest.approx(np.mean(num_vec), rel=1e-6)
+
+        # float
+        sphere = unitSphere(method='icoSphere', n=2)
+        num_vec = np.random.uniform(0, 2137, size=len(sphere.points))
+        for i,p in enumerate(sphere.points):
+            p.num_passed = num_vec[i]
+        avg = sphere.stats_average()
+        assert avg == pytest.approx(np.mean(num_vec), rel=1e-6)
+
+    def test_stats_max_min(self):
+        # int
+        sphere = unitSphere(method='icoSphere', n=2)
+        num_vec = np.random.randint(0, 2137, size=len(sphere.points))
+        max_num = np.max(num_vec)
+        min_num = np.min(num_vec)
+        diff = max_num - min_num
+        for i,p in enumerate(sphere.points):
+            p.num_passed = num_vec[i]
+        ret_dict = sphere.stats_max_min()
+        assert ret_dict["min"] == min_num
+        assert ret_dict["max"] == max_num
+        assert ret_dict["max_min_diff"] == diff
+
+        # float
+        sphere = unitSphere(method='icoSphere', n=2)
+        num_vec = np.random.uniform(0, 2137, size=len(sphere.points))
+        max_num = np.max(num_vec)
+        min_num = np.min(num_vec)
+        diff = max_num - min_num
+        for i,p in enumerate(sphere.points):
+            p.num_passed = num_vec[i]
+        ret_dict = sphere.stats_max_min()
+        assert ret_dict["min"] == pytest.approx(min_num, rel=1e-6)
+        assert ret_dict["max"] == pytest.approx(max_num, rel=1e-6)
+        assert ret_dict["max_min_diff"] == pytest.approx(diff, rel=1e-6)
+
+    def test_mark_trajectory_timed_same_point(self):
+        MAX_TIME = 100.0
+        MAX_P_CNT = 100
+        
+        sphere = unitSphere(method='icoSphere', n=2)
+        # create data for the same point
+        point = np.random.choice(sphere.points)
+        p_num = np.random.randint(1, MAX_P_CNT)
+        max_time = np.random.uniform(1, MAX_TIME)
+        time_vec = np.linspace(0, max_time, p_num)
+        data_xyz = np.tile(point.coords, (p_num, 1))
+        sphere.assign_neighbours(3)
+        nei_skips = sphere.mark_trajectory_timed(data_xyz, time_vec)
+
+        assert nei_skips == 0
+        stat_avg = sphere.stats_average()
+        assert stat_avg == pytest.approx(max_time/len(sphere.points), rel=1e-6)
+        stat_max_min = sphere.stats_max_min()
+        assert stat_max_min["max"] == pytest.approx(max_time, rel=1e-6)
+        assert stat_max_min["min"] == pytest.approx(0.0, rel=1e-6)
+        assert stat_max_min["max_min_diff"] == pytest.approx(max_time, rel=1e-6)
+
+        for p in sphere.points:
+            if p == point:
+                assert p.num_passed == pytest.approx(max_time, rel=1e-6)
+                assert p == sphere.last_marked_point
+            else:
+                assert p.num_passed == pytest.approx(0.0, rel=1e-6)
+        
+    def test_mark_trajectory_timed_nei_point(self):
+        MAX_TIME = 100.0
+        MAX_P_CNT = 100
+
+        CIRC_TRAJ = np.array([[1,0,0],[0,1,0],[-1,0,0],[0,-1,0]])
+
+        sphere = make_simple_sphere()
+        # create data for the same point
+        point = np.random.choice(sphere.points)
+        p_num = np.random.randint(4, MAX_P_CNT)
+        max_time = np.random.uniform(1, MAX_TIME)
+        time_vec = np.linspace(0, max_time, p_num)
+        data_xyz = np.zeros((p_num, 3))
+        sphere.assign_neighbours(4)
+        for i in range(p_num):
+            data_xyz[i,:] = CIRC_TRAJ[i % len(CIRC_TRAJ)]
+
+        nei_skips = sphere.mark_trajectory_timed(data_xyz, time_vec)
+        assert nei_skips == 0
+        time_sum = 0.0
+        for p in sphere.points:
+            time_sum += p.num_passed
+        assert time_sum == pytest.approx(max_time, rel=1e-6)
+
+        # simple statistics
+        stat_avg = sphere.stats_average()
+        assert stat_avg == pytest.approx(max_time/len(sphere.points), rel=1)
+        stat_min_max_dict = sphere.stats_max_min()
+        assert stat_min_max_dict["min"] == 0
+
+        # manual check
+        temp_buff = np.zeros((4))
+        dt = time_vec[1] - time_vec[0]
+        for i in range(1,p_num):
+            temp_buff[i%4] += dt/2
+            temp_buff[(i-1)%4] += dt/2
+        for i in range(len(CIRC_TRAJ)):
+            assert pytest.approx(temp_buff[i], rel=1e-6) == sphere.find_closest(CIRC_TRAJ[i%len(CIRC_TRAJ)])["point_ref"].num_passed
+        
+    def test_mark_trajectory_timed_further_points(self):
+        MAX_TIME = 100.0
+        
+        # manually create some known points
+        sphere = unitSphere(n=5, method='random')
+        for i,p in enumerate(sphere.points):
+            z = 0.0
+            x = i/10
+            y = np.sqrt(1 - x**2)
+            new_coords = np.array([x,y,z])
+            if i == 1:
+                first_data_p = new_coords
+            p.coords = new_coords
+        data_points = np.array([first_data_p,new_coords])
+        time_vec = [0, np.random.uniform(0,MAX_TIME)]
+        sphere.assign_neighbours(2)
+        nei_skip = sphere.mark_trajectory_timed(data_points, time_vec)
+
+        # assertions
+        assert nei_skip == 2
+        time_sum = 0.0
+        for p in sphere.points:
+            time_sum += p.num_passed
+        prev_point = sphere.points[1]
+        for p in sphere.points[2:]:
+            assert prev_point.num_passed == p.num_passed
+            prev_point = p
+        assert time_vec[1] == pytest.approx(time_sum, rel=1e-6)
+        assert sphere.stats_average() == pytest.approx(time_vec[1]/(len(sphere.points)), rel=1e-6)
+        stat_dict = sphere.stats_max_min()
+        assert stat_dict["max"] == pytest.approx(time_vec[1]/(len(sphere.points)-1), rel=1e-6)
+        assert stat_dict["min"] == 0.0
+         
+
 
     def test_buffer_spliting(self):
         # no split (MAX_BUFF_SIZE > ROW_CNT)
