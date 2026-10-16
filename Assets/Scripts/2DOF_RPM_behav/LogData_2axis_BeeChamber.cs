@@ -5,6 +5,10 @@ using System.Globalization;
 
 public class LogData_2axis_BeeChamber : MonoBehaviour
 {
+    // for timing freq
+    public float data_write_frequency_Hz = 100.0f;  //[s]
+    float time_passed = 0.0f;
+    // Probe detection check
     public uint amount_of_probes = 0;
     public List<GameObject> probes = new List<GameObject>();
     string filePath;
@@ -50,10 +54,11 @@ public class LogData_2axis_BeeChamber : MonoBehaviour
     }
 
     // Update is called once per frame
-    void FixedUpdate()
+    void Update()
     {
         if (StartButton.isPressed)
         {
+
             if (!isMoving)
             {
                 isMoving = true;
@@ -79,7 +84,7 @@ public class LogData_2axis_BeeChamber : MonoBehaviour
                 }
 
                 //creating the header of the file   
-                string header_str = "Time[s],OuterFrameSpeed[deg/s],BeeChamberSpeed[deg/s],OuterFrameAng[deg],BeeChamberAng[deg],BeeChamb_XYZ[m]"; //must end with a space
+                string header_str = "Time[s],OuterFrameSpeed[deg/s],InnerFrameSpeed[deg/s],OuterFrameAng[deg],InnerFrameAng[deg],BeeChamb_XYZ[m]"; //must end with a space
                 string probe_id;
                 foreach (GameObject probe in probes)
                 {
@@ -87,42 +92,49 @@ public class LogData_2axis_BeeChamber : MonoBehaviour
                     header_str += "," + probe_id + "_pos," + probe_id + "_vel," + probe_id + "_acc"; //must end with a space
                 }
                 writer.WriteLine(header_str);
+
+                time_passed = 0.0f;
             }
 
-            ////////////////////////////////////////////////
-            /// on each update 
-            /////////////////////////////////////////////////////////
-
-            float time = Time.time;
-            // getting the current speeds
-            float OuterFrameSpeed = InputField_RotFrameSpeed.input_float_val*6;
-            float BeeChamberSpeed = InputField_BeeChamberSpeed.input_float_val*6;
-
-            // writing data to file
-            // time
-            string line = time.ToString() + ",";
-            // frame speeds
-            line += OuterFrameSpeed.ToString() + "," + BeeChamberSpeed.ToString() + ",";
-            // frame angles
-            float OuterFrameAng = this.transform.parent.localEulerAngles.z;
-            float BeeChamberAng = this.transform.localEulerAngles.y;
-            line += OuterFrameAng.ToString() + "," + BeeChamberAng.ToString() + ",";
-            // BeeChamber rotation vector
-            Vector3 BeeChamberRot = this.GetComponent<Gravity_to_local>().local_grav_vector3;
-            line += BeeChamberRot.x.ToString() + "|" + BeeChamberRot.y.ToString() + "|" + BeeChamberRot.z.ToString();
-            // probe rotation vectors
-            foreach (GameObject probe in probes)
+            time_passed += Time.deltaTime;
+            if (time_passed >= 1/data_write_frequency_Hz)
             {
-                Vector3 BeeChamb_Center = this.GetComponent<Transform>().position;
-                Vector3 probe_loc = probe.GetComponent<Transform>().position;
-                Vector3 probe_rot = probe_loc - BeeChamb_Center;    //normalizing the vector to local position
-                //position
-                line += "," + string.Format("{0:F9}|{1:F9}|{2:F9}", probe_rot.x, probe_rot.y, probe_rot.z) ;
-                //line += probe_rot.x.ToString() + "," + probe_rot.y.ToString() + "," + probe_rot.z.ToString() + ",";
-                line += "," + string.Format("{0:F9}|{1:F9}|{2:F9}", probe.GetComponent<Rigidbody>().linearVelocity.x, probe.GetComponent<Rigidbody>().linearVelocity.y, probe.GetComponent<Rigidbody>().linearVelocity.z);
-                line += "," + string.Format("{0:F9}|{1:F9}|{2:F9}", probe.GetComponent<calc_rot_acc_vel>().acc_v3.x, probe.GetComponent<calc_rot_acc_vel>().acc_v3.y, probe.GetComponent<calc_rot_acc_vel>().acc_v3.z);
+                time_passed = 0.0f;
+                ////////////////////////////////////////////////
+                /// on each update 
+                /////////////////////////////////////////////////////////
+
+                float time = Time.time;
+                // getting the current speeds
+                float OuterFrameSpeed = InputField_RotFrameSpeed.input_float_val*6;
+                float BeeChamberSpeed = InputField_BeeChamberSpeed.input_float_val*6;
+
+                // writing data to file
+                // time
+                string line = time.ToString() + ",";
+                // frame speeds
+                line += OuterFrameSpeed.ToString() + "," + BeeChamberSpeed.ToString() + ",";
+                // frame angles
+                float OuterFrameAng = this.transform.parent.localEulerAngles.z;
+                float BeeChamberAng = this.transform.localEulerAngles.y;
+                line += OuterFrameAng.ToString() + "," + BeeChamberAng.ToString() + ",";
+                // BeeChamber rotation vector
+                Vector3 BeeChamberRot = this.GetComponent<Gravity_to_local>().local_grav_vector3;
+                line += BeeChamberRot.x.ToString() + "|" + BeeChamberRot.y.ToString() + "|" + BeeChamberRot.z.ToString();
+                // probe rotation vectors
+                foreach (GameObject probe in probes)
+                {
+                    Vector3 BeeChamb_Center = this.GetComponent<Transform>().position;
+                    Vector3 probe_loc = probe.GetComponent<Transform>().position;
+                    Vector3 probe_rot = probe_loc - BeeChamb_Center;    //normalizing the vector to local position
+                    //position
+                    line += "," + string.Format("{0:F9}|{1:F9}|{2:F9}", probe_rot.x, probe_rot.y, probe_rot.z) ;
+                    //line += probe_rot.x.ToString() + "," + probe_rot.y.ToString() + "," + probe_rot.z.ToString() + ",";
+                    line += "," + string.Format("{0:F9}|{1:F9}|{2:F9}", probe.GetComponent<Rigidbody>().linearVelocity.x, probe.GetComponent<Rigidbody>().linearVelocity.y, probe.GetComponent<Rigidbody>().linearVelocity.z);
+                    line += "," + string.Format("{0:F9}|{1:F9}|{2:F9}", probe.GetComponent<calc_rot_acc_vel>().acc_v3.x, probe.GetComponent<calc_rot_acc_vel>().acc_v3.y, probe.GetComponent<calc_rot_acc_vel>().acc_v3.z);
+                }
+                writer.WriteLine(line);
             }
-            writer.WriteLine(line);
         }
         else
         {

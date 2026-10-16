@@ -2488,6 +2488,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e7c3705bd03277b4dbab284869b9b363, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LogData_BeeChamber
+  data_write_frequency_Hz: 100
   amount_of_probes: 0
   probes:
   - {fileID: 0}
