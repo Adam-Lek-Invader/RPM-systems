@@ -21,9 +21,9 @@ public class input_field_grabber : MonoBehaviour
        
         for(int i = 0; i < inputValue.Length; i++)
         {
-            if (inputValue[i] == '.')
+            if (inputValue[i] == ',')
             {
-                inputValue = inputValue.Substring(0, i) + ',' + inputValue.Substring(i + 1);
+                inputValue = inputValue.Substring(0, i) + '.' + inputValue.Substring(i + 1);
             }
         }
         float.TryParse(inputValue, out input_float_val);

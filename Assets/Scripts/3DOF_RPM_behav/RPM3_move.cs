@@ -19,6 +19,11 @@ public class RPM3_move : MonoBehaviour
     public float InnerSpeed = 0f;
     public bool isMoving = false;
 
+    [Header("DC motor angles")]
+    public float OuterAng = 0f;
+    public float IntermediateAng = 0f;
+    public float InnerAng = 0f;
+
     Vector3 speed_OuterFrame = Vector3.zero;
     Vector3 speed_IntermediateFrame = Vector3.zero;
     Vector3 speed_InnerFrame = Vector3.zero;
@@ -35,7 +40,7 @@ public class RPM3_move : MonoBehaviour
 
         if (isMoving)
         {
-            //speeds normalized to RPM
+            //speeds normalized from RPM to Deg
             OuterSpeed = InputField_OuterSpeed.input_float_val*6;
             IntermediateSpeed = InputField_IntermediateSpeed.input_float_val*6;
             InnerSpeed = InputField_InnerSpeed.input_float_val*6;
@@ -47,6 +52,18 @@ public class RPM3_move : MonoBehaviour
             ObjOuterFrame.transform.Rotate(speed_OuterFrame, Space.Self);
             ObjIntermediateFrame.transform.Rotate(speed_IntermediateFrame, Space.Self);
             ObjInnerFrame.transform.Rotate(speed_InnerFrame, Space.Self);
+
+            //calc dc angles
+            OuterAng += OuterSpeed * Time.deltaTime;
+            IntermediateAng += IntermediateSpeed * Time.deltaTime;
+            InnerAng += InnerSpeed * Time.deltaTime;
+            //normalize to <0, 360)
+            if(OuterAng >= 360f) OuterAng -= 360f;
+            if(IntermediateAng >= 360f) IntermediateAng -= 360f;
+            if(InnerAng >= 360f) InnerAng -= 360f;
+            if(OuterAng < 0f) OuterAng += 360f;
+            if(IntermediateAng < 0f) IntermediateAng += 360f;
+            if(InnerAng < 0f) InnerAng += 360f;
         }
     }
 }

@@ -566,6 +566,7 @@ MonoBehaviour:
   InputField_OuterSpeed: {fileID: 572098485}
   InputField_IntermediateSpeed: {fileID: 1989709918}
   InputField_InnerSpeed: {fileID: 580415057}
+  script_move: {fileID: 708968713}
 --- !u!1001 &343511637
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -592,15 +593,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 08c109391c51f32408ff89ed47e5f2df, type: 3}
       propertyPath: m_LocalRotation.x
-      value: -0
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 08c109391c51f32408ff89ed47e5f2df, type: 3}
       propertyPath: m_LocalRotation.y
-      value: -0
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 08c109391c51f32408ff89ed47e5f2df, type: 3}
       propertyPath: m_LocalRotation.z
-      value: -0
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 08c109391c51f32408ff89ed47e5f2df, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
@@ -1324,6 +1325,9 @@ MonoBehaviour:
   IntermediateSpeed: 0
   InnerSpeed: 0
   isMoving: 0
+  OuterAng: 0
+  IntermediateAng: 0
+  InnerAng: 0
 --- !u!1 &1030710411
 GameObject:
   m_ObjectHideFlags: 0
@@ -1628,11 +1632,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 38c70e01f9c30d94b8958718cf707db4, type: 3}
       propertyPath: m_LocalRotation.y
-      value: -0
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 38c70e01f9c30d94b8958718cf707db4, type: 3}
       propertyPath: m_LocalRotation.z
-      value: -0
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 38c70e01f9c30d94b8958718cf707db4, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x

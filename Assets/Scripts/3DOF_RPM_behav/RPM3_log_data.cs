@@ -18,6 +18,8 @@ public class RPM3_log_data : MonoBehaviour
     public input_field_grabber InputField_OuterSpeed;
     public input_field_grabber InputField_IntermediateSpeed;
     public input_field_grabber InputField_InnerSpeed;
+    // move script for reading dc angles
+    public RPM3_move script_move;
     bool isMoving = false;
 
     public List<GameObject> GetAllProbes()
@@ -122,10 +124,10 @@ public class RPM3_log_data : MonoBehaviour
                 line += OuterSpeed.ToString() + "," 
                     + IntermediateSpeed.ToString() + ","
                     + InnerSpeed.ToString() + ",";
-                // frame angles
-                float OuterAng = this.transform.parent.localEulerAngles.z;
-                float IntermediateAng = this.transform.localEulerAngles.y;
-                float InnerAng = this.transform.localEulerAngles.x;
+                // frame angles [degree]
+                float OuterAng = script_move.OuterAng;
+                float IntermediateAng = script_move.IntermediateAng;
+                float InnerAng =  script_move.InnerAng;
                 line += OuterAng.ToString() + "," + IntermediateAng.ToString() + "," + InnerAng.ToString() + ",";
                 // BeeChamber rotation vector
                 Vector3 BeeChamberRot = this.GetComponent<Gravity_to_local>().local_grav_vector3;
