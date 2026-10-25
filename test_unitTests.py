@@ -5,6 +5,7 @@ import os
 import numpy as np
 from unitSphereModule import unitSpherePoint, unitSphere
 import file_operations
+import rot_utility
 
 def make_simple_sphere()->unitSphere:
     sphere = unitSphere(n=6)
@@ -83,6 +84,29 @@ def write_random_csv_data_file(file_name,point_num=10, axis=3, probe_num=3):
     with os.open(file_name, os.O_WRONLY):
         pass
 
+
+class Test_RotUtilities:
+    def test_taSMG_class(self):
+        # data
+        data = np.random.uniform(low=0.0, high=100.0, size=(100,3))
+        time_vec = np.random.uniform(low=1.0, high=2.0, size=(100))
+        for i in range(len(time_vec)):
+            time_vec[i] += sum(time_vec[:i])
+
+        # ground taSMG
+        ground_xyz_means = np.zeros(shape=(3))
+        for i in range(1, len(time_vec)):
+            dt = time_vec[i-1] - time_vec[i]
+            ground_xyz_means += data[i,:]*dt
+        ground_xyz_means /= time_vec[-1]
+        ground_taSMG = np.sqrt( ground_xyz_means[0]**2 + ground_xyz_means[1]**2 + ground_xyz_means[2]**2 )
+
+        # taSMG iterative
+        taSMG_iter = rot_utility.taSMG_iterative()
+        for i in range(1, len(time_vec)):
+            dt = time_vec[i-1] - time_vec[i]
+            taSMG_iter.next_sample(data[i,:],dt)
+        assert ground_taSMG == pytest.approx( taSMG_iter.get_taSMG(), rel=1e-6 )
 
 
 class TestUnitSpherePoint_basic:

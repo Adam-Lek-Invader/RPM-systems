@@ -2,11 +2,11 @@ import argparse
 import logging
 import os, json, time
 import tkinter as tk
-from turtle import title
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
+import rot_utility
 import gui
 import unitSphereModule
 import file_operations
@@ -128,8 +128,7 @@ def main(argv=None):
     time_start = time.perf_counter()
 
     taSMG_start_time = None # used so that time starts from 0.0s
-    T = 0.0  # total time ( = current timestamp - start time)
-    taSMG_acc_xyz_timed = np.float64(0.0) # += a_vec*dt | normalizing by g done later to lower numerical errors
+    taSMG_iter = rot_utility.taSMG_iterative()
     fig_taSMG = go.Figure()
     fig_taSMG.add_trace(
         go.Scatter(
@@ -176,39 +175,31 @@ def main(argv=None):
                 data_index = col_names.index(GRAV_VEC_NAME)
                 time_index = col_names.index(TIME_VEC_NAME)
                 taSMG_start_time = buffers[time_index][0]   # first timestamp from .csv
+                prev_time = None
             except Exception as e:
                 logger.error(f"Index Error: {e}")
                 return 1
 
-        time_buff = np.zeros(shape=(buf_row_count))
-        taSMG_buff = np.zeros(shape=(buf_row_count))
-        acc_buff = np.zeros(shape=(buf_row_count, 3))
+        g_buff = buffers[data_index]
+        t_buff = buffers[time_index]
+        taSMG_buff = np.zeros(shape=(buf_row_count), dtype=np.float64)
 
         # taSMG
-        for i,t in enumerate(buffers[time_index]):
-            dt = T - (t-taSMG_start_time)
-            T = t-taSMG_start_time
-            acc_vec = buffers[data_index][i,:]
-            
-            if T == 0.0:
-                taSMG_acc_xyz_timed += acc_vec  # just acc_vec 
-                taSMG_acc_mag = np.linalg.norm(taSMG_acc_xyz_timed)
-                taSMG = taSMG_acc_mag/CONST_G #int(a*dt)/1
-            else:
-                taSMG_acc_xyz_timed += acc_vec*dt   # a_xyz * dt
-                taSMG_acc_mag = np.linalg.norm(taSMG_acc_xyz_timed)
-                taSMG = taSMG_acc_mag/(T*CONST_G) #int(a*dt)/T
-
-            time_buff[i] = T
-            taSMG_buff[i] = taSMG
-            acc_buff[i,:] = acc_vec
+        for i,t in enumerate(t_buff):
+            if prev_time is None:
+                prev_time = t
+                taSMG_buff[i] = 1.0 #as 1g
+                continue
+            dt = t - prev_time
+            taSMG_iter.next_sample(g_buff[i,:]/CONST_G, t_buff[i])  #normalized to g
+            taSMG_buff[i] = taSMG_iter.get_taSMG()
 
         # add traces to plots
-        fig_taSMG.data[0].x = np.append(fig_taSMG.data[0].x, time_buff)
+        fig_taSMG.data[0].x = np.append(fig_taSMG.data[0].x, t_buff-taSMG_start_time)
         fig_taSMG.data[0].y = np.append(fig_taSMG.data[0].y, taSMG_buff)
         for i_xyz in range(3):
-            fig_xyz_acc.data[i_xyz].x = np.append(fig_xyz_acc.data[i_xyz].x, time_buff)
-            fig_xyz_acc.data[i_xyz].y = np.append(fig_xyz_acc.data[i_xyz].y, acc_buff[:,i_xyz])
+            fig_xyz_acc.data[i_xyz].x = np.append(fig_xyz_acc.data[i_xyz].x, t_buff-taSMG_start_time)
+            fig_xyz_acc.data[i_xyz].y = np.append(fig_xyz_acc.data[i_xyz].y, g_buff[:,i_xyz])
             
         # update the progress
         tk_components["op3_taSMG_text"].config(text=f"Making taSMG Plots... ({total_rows} rows processed)")
